@@ -37,7 +37,7 @@ def process_block(ratios, other_ratios):
 
     close = differences < BLOCK_ERROR_TOL * jnp.log(ratios.shape[1])
 
-    pairings = jnp.sum(close, axis=2) >= max(MIN_SAME_SIZE,BLOCK_MULTIPLY_FACTOR*(jnp.log(ratios.shape[1])-2))
+    pairings = jnp.sum(close, axis=2) >= max(MIN_SAME_SIZE,BLOCK_MULTIPLY_FACTOR*(np.log(ratios.shape[1])-2))
 
     return pairings
 

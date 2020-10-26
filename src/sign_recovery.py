@@ -153,7 +153,7 @@ def find_plane_angle(known_T,
         y_dir_base = np.sign(np.random.normal(size=DIM))/DIM**.5
         # When the input dimension is odd we can't have two orthogonal
         # vectors from {-1,1}^DIM
-        if np.abs(np.dot(x_dir_base, y_dir_base)) <= DIM%2:
+        if np.abs(np.dot(x_dir_base, y_dir_base)) <= DIM%2 + 1e-8:
             break
 
     MAX = 35
