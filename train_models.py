@@ -20,6 +20,8 @@ import jax
 import jax.experimental.optimizers
 import jax.numpy as jnp
 
+activation_type = 'elu'
+
 def matmul(a,b,c,np=jnp):
     if c is None:
         c = np.zeros(1)
@@ -44,6 +46,20 @@ for i,(op, a,b) in enumerate(zip(ops, sizes, sizes[1:])):
     A.append(onp.random.normal(size=(a,b))/(b**.5))
     B.append(onp.zeros((b,)))
 
+def activation_function(x):
+    if(activation_type == 'relu'):
+        #return x*(x>0)
+        return jax.nn.relu(x)
+    elif(activation_type == 'leaky'):
+        #return x*(x>0) + 0.01*x*(x<0)
+        return jax.nn.leaky_relu(x)
+    elif(activation_type == 'elu'):
+        return jax.nn.elu(x)
+    else:
+        print(str(activation_type) + ", is not a valid activation function")
+        return x
+
+
 def run(x, A, B):
     """
     Run the neural network forward on the input x using the matrix A,B.
@@ -57,7 +73,7 @@ def run(x, A, B):
         # Please forgive me.
         x = op(x,a,b)
         if i < len(sizes)-2:
-            x = x*(x>0)
+            x = activation_function(x)
 
     return x
 
@@ -70,7 +86,7 @@ def getinner(x, A, B):
         x = op(x,a,b)
         region.append(onp.copy(x))
         if i < len(sizes)-2:
-            x = x*(x>0)
+            x = activation_function(x)
     return region
         
 
