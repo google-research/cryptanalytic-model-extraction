@@ -40,7 +40,7 @@ def run(x,A,B,debug=True, np=np):
 
 name = sys.argv[1] if len(sys.argv) > 1 else "40-20-10-10-1"
 
-prefix = "/tmp/"
+prefix = "./models/"
 
 A1, B1 = pickle.load(open(prefix+"real-%s.p"%name,"rb"))
 A2, B2 = pickle.load(open(prefix+"extracted-%s.p"%name,"rb"))
@@ -138,5 +138,5 @@ print("Fewest number of bits of precision over", len(ls), "random samples:", -np
 # Finally plot a distribution of the values to see
 plt.hist(ls,30)
 plt.semilogy()
-plt.savefig("/tmp/a.pdf")
+plt.savefig("./figs/a.pdf")
 exit(0)

@@ -68,7 +68,6 @@ sizes = list(map(int,sys.argv[1].split("-")))
 
 model = SimpleClassifier(sizes, jax.nn.relu)
 
-
 SAMPLES = 20
 
 init, opt_update, get_params = jax.experimental.optimizers.adam(3e-4)
@@ -100,4 +99,4 @@ for i in range(100):
         step += 1
         
 # Save our amazing model.
-onp.save("models/" + str(seed) + "_" + "-".join(map(str,sizes)), params)
+onp.save("./models/" + str(seed) + "_" + "-".join(map(str,sizes)), params)

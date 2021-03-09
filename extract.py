@@ -202,15 +202,15 @@ def solve_final_layer(known_T, inputs, outputs):
     At = known_T.A+[vector[:-1]]
     Bt = known_T.B+[vector[-1]]
 
-    print("SAVING", "/tmp/extracted-%s.p"%"-".join(map(str,sizes)))
+    print("SAVING", "./models/extracted-%s.p"%"-".join(map(str,sizes)))
     
     pickle.dump([At,
                  Bt],
-                open("/tmp/extracted-%s.p"%"-".join(map(str,sizes)),"wb"))
+                open("./models/extracted-%s.p"%"-".join(map(str,sizes)),"wb"))
 
     from src.global_vars import __cheat_A, __cheat_B
     pickle.dump([__cheat_A, __cheat_B],
-                open("/tmp/real-%s.p"%"-".join(map(str,sizes)),"wb"))
+                open("./models/real-%s.p"%"-".join(map(str,sizes)),"wb"))
 
 
     def loss(x):
@@ -225,7 +225,13 @@ def solve_final_layer(known_T, inputs, outputs):
 
     print("Finally we are done.\n")
     
-    print('Maximum logit loss on the unit sphere',np.max(np.abs(ls)))
+    max_loss = np.max(np.abs(ls))
+    
+    res = open("results.txt", "a")
+    res.write(str(max_loss))
+    res.close()
+    
+    print('Maximum logit loss on the unit sphere',max_loss)
     print("\nfin")
 
 def set_timeout(time):
@@ -245,7 +251,7 @@ if __name__ == "__main__":
     # Figure out how many threads we can use and create the pool now
     pool.append(mp.Pool(MPROC_THREADS//4))
 
-    set_timeout(60*60)
+    #set_timeout(60*60)
 
     print("START EXTRACTION ATTACK")
     # Make it so
