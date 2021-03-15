@@ -136,7 +136,7 @@ ls = onp.array(ls).flatten()
 print("Fewest number of bits of precision over", len(ls), "random samples:", -np.log(np.max(ls))/np.log(2))
 
 # Finally plot a distribution of the values to see
-plt.hist(ls,30)
+plt.hist(ls,rwidth=0.9)
 plt.semilogy()
-plt.savefig("./figs/a.pdf")
+plt.savefig("./figs/out.svg")
 exit(0)

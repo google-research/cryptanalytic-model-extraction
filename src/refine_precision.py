@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-
 import jax
 import jax.experimental.optimizers
 import jax.numpy as jnp
 
-from src.global_vars import *
-from src.utils import matmul, which_is_zero
 from src.find_witnesses import do_better_sweep
+from src.global_vars import *
+from src.tracker import Logger
+from src.utils import matmul, which_is_zero
+
+logger = Logger()
+
 
 def trim(hidden_layer, out, num_good):
     """
@@ -33,10 +35,11 @@ def trim(hidden_layer, out, num_good):
         errs = np.abs(np.dot(hidden_layer, lst) - out)
         best_errs = np.argsort(errs)[:num_good]
         lst, *rest = np.linalg.lstsq(hidden_layer[best_errs], out[best_errs])
-        if np.linalg.norm(old-lst) < 1e-9:
+        if np.linalg.norm(old - lst) < 1e-9:
             return lst, best_errs
         old = lst
     return lst, best_errs
+
 
 def improve_row_precision(args):
     """
@@ -69,17 +72,16 @@ def improve_row_precision(args):
     This solves the equation and improves the point for us.
     """
     (LAYER, known_T, known_A, known_B, row, did_again) = args
-    print("Improve the extracted neuron number", row)
+    logger.log("Improve the extracted neuron number", row, level=Logger.INFO)
 
-    print(np.sum(np.abs(known_A[:,row])))
-    if np.sum(np.abs(known_A[:,row])) < 1e-8:
-        return known_A[:,row], known_B[row]
-        
+    logger.log(np.sum(np.abs(known_A[:, row])), level=Logger.INFO)
+    if np.sum(np.abs(known_A[:, row])) < 1e-8:
+        return known_A[:, row], known_B[row]
 
     def loss(x, r):
         hidden = known_T.forward(x, with_relu=True, np=jnp)
-        dotted = matmul(hidden, jnp.array(known_A)[:,r], jnp.array(known_B)[r], np=jnp)
-                
+        dotted = matmul(hidden, jnp.array(known_A)[:, r], jnp.array(known_B)[r], np=jnp)
+
         return jnp.sum(jnp.square(dotted))
 
     loss_grad = jax.jit(jax.grad(loss))
@@ -96,13 +98,14 @@ def improve_row_precision(args):
         This should be completely possible, because we have d_0 input dimensions but 
         only want to control one inner layer.
         """
-        print("Gather some more actual critical points on the plane")
+        logger.log("Gather some more actual critical points on the plane", level=Logger.INFO)
         stepsize = .1
         critical_points = []
         while len(critical_points) <= NUM:
-            print("On this iteration I have ", len(critical_points), "critical points on the plane")
-            points = np.random.normal(0, 1e3, size=(100,DIM,))
-            
+            logger.log("On this iteration I have ", len(critical_points), "critical points on the plane",
+                       level=Logger.INFO)
+            points = np.random.normal(0, 1e3, size=(100, DIM,))
+
             lr = 10
             for step in range(5000):
                 # Use JaX's built in optimizer to do this.
@@ -111,17 +114,18 @@ def improve_row_precision(args):
                 # but this seems to work just fine.
 
                 # No queries involvd here.
-                if step%1000 == 0:
+                if step % 1000 == 0:
                     lr *= .5
                     init, opt_update, get_params = jax.experimental.optimizers.adam(lr)
-                
+
                     @jax.jit
                     def update(i, opt_state, batch):
                         params = get_params(opt_state)
                         return opt_update(i, loss_grad(batch, row), opt_state)
+
                     opt_state = init(points)
-                
-                if step%100 == 0:
+
+                if step % 100 == 0:
                     ell = loss(points, row)
                     if CHEATING:
                         # This isn't cheating, but makes things prettier
@@ -130,7 +134,7 @@ def improve_row_precision(args):
                         break
                 opt_state = update(step, opt_state, points)
                 points = opt_state.packed_state[0][0]
-                
+
             for point in points:
                 # For each point, try to see where it actually is.
 
@@ -141,17 +145,16 @@ def improve_row_precision(args):
                 if LAYER > 0:
                     # If wee're on a deeper layer, and if a prior layer is zero, then abort
                     if min(np.min(np.abs(x)) for x in known_T.get_hidden_layers(point)) < 1e-4:
-                        print("is on prior")
+                        logger.log("is on prior", level=Logger.INFO)
                         continue
-                    
-                    
-                #print("Stepsize", stepsize)
+
+                # print("Stepsize", stepsize)
                 tmp = query_count
                 solution = do_better_sweep(offset=point,
                                            low=-stepsize,
                                            high=stepsize,
                                            known_T=known_T)
-                #print("qs", query_count-tmp)
+                # print("qs", query_count-tmp)
                 if len(solution) == 0:
                     stepsize *= 1.1
                 elif len(solution) > 1:
@@ -162,70 +165,68 @@ def improve_row_precision(args):
 
                     hiddens = extended_T.get_hidden_layers(potential_solution)
 
-
                     this_hidden_vec = extended_T.forward(potential_solution)
                     this_hidden = np.min(np.abs(this_hidden_vec))
-                    if min(np.min(np.abs(x)) for x in this_hidden_vec) > np.abs(this_hidden)*0.9:
+                    if min(np.min(np.abs(x)) for x in this_hidden_vec) > np.abs(this_hidden) * 0.9:
                         critical_points.append(potential_solution)
                     else:
-                        print("Reject it")
-        print("Finished with a total of", len(critical_points), "critical points")
+                        logger.log("Reject it", level=Logger.INFO)
+        logger.log("Finished with a total of", len(critical_points), "critical points", level=Logger.INFO)
         return critical_points
-
 
     critical_points_list = []
     for _ in range(1):
-        NUM = sizes[LAYER]*2
+        NUM = sizes[LAYER] * 2
         critical_points_list.extend(get_more_points(NUM))
-        
+
         critical_points = np.array(critical_points_list)
 
         hidden_layer = known_T.forward(np.array(critical_points), with_relu=True)
 
         if CHEATING:
-            out = np.abs(matmul(hidden_layer, A[LAYER],B[LAYER]))
+            out = np.abs(matmul(hidden_layer, A[LAYER], B[LAYER]))
             which_neuron = int(np.median(which_is_zero(0, [out])))
-            print("NEURON NUM", which_neuron)
+            logger.log("NEURON NUM", which_neuron, level=Logger.INFO)
 
-            crit_val_0 = out[:,which_neuron]
-                
-            print(crit_val_0)
+            crit_val_0 = out[:, which_neuron]
 
-            #print(list(np.sort(np.abs(crit_val_0))))
-            print('probability ok',np.mean(np.abs(crit_val_0)<1e-8))
+            logger.log(crit_val_0, level=Logger.INFO)
 
-        crit_val_1 = matmul(hidden_layer, known_A[:,row], known_B[row])
+            # print(list(np.sort(np.abs(crit_val_0))))
+            logger.log('probability ok', np.mean(np.abs(crit_val_0) < 1e-8), level=Logger.INFO)
+
+        crit_val_1 = matmul(hidden_layer, known_A[:, row], known_B[row])
 
         best = (None, 1e6)
         upto = 100
 
         for iteration in range(upto):
-            if iteration%1000 == 0:
-                print("ITERATION", iteration, "OF", upto)
-            if iteration%2 == 0 or True:
+            if iteration % 1000 == 0:
+                logger.log("ITERATION", iteration, "OF", upto, level=Logger.INFO)
+            if iteration % 2 == 0 or True:
 
                 # Try 1000 times to make sure that we get at least one non-zero per axis
                 for _ in range(1000):
-                    randn = np.random.choice(len(hidden_layer), NUM+2, replace=False)
+                    randn = np.random.choice(len(hidden_layer), NUM + 2, replace=False)
                     if np.all(np.any(hidden_layer[randn] != 0, axis=0)):
                         break
 
                 hidden = hidden_layer[randn]
-                soln,*rest = np.linalg.lstsq(hidden, np.ones(hidden.shape[0]))
-                
-                
+                soln, *rest = np.linalg.lstsq(hidden, np.ones(hidden.shape[0]))
+
+
             else:
-                randn = np.random.choice(len(hidden_layer), min(len(hidden_layer),hidden_layer.shape[1]+20), replace=False)
-                soln,_ = trim(hidden_layer[randn], np.ones(hidden_layer.shape[0])[randn], hidden_layer.shape[1])
+                randn = np.random.choice(len(hidden_layer), min(len(hidden_layer), hidden_layer.shape[1] + 20),
+                                         replace=False)
+                soln, _ = trim(hidden_layer[randn], np.ones(hidden_layer.shape[0])[randn], hidden_layer.shape[1])
 
+            crit_val_2 = matmul(hidden_layer, soln, None) - 1
 
-            crit_val_2 = matmul(hidden_layer, soln, None)-1
-            
             quality = np.median(np.abs(crit_val_2))
 
-            if iteration%100 == 0:
-                print('quality', quality, best[1])
-            
+            if iteration % 100 == 0:
+                logger.log('quality', quality, best[1], level=Logger.INFO)
+
             if quality < best[1]:
                 best = (soln, quality)
 
@@ -236,51 +237,50 @@ def improve_row_precision(args):
         soln, _ = best
 
         if CHEATING:
-            print("Compare", np.median(np.abs(crit_val_0)))
-        print("Compare",
-              np.median(np.abs(crit_val_1)),
-              best[1])
+            logger.log("Compare", np.median(np.abs(crit_val_0)), level=Logger.INFO)
+        logger.log("Compare",
+                   np.median(np.abs(crit_val_1)),
+                   best[1])
 
         if np.all(np.abs(soln) > 1e-10):
             break
 
-    print('soln',soln)
-    
+    logger.log('soln', soln, level=Logger.INFO)
+
     if np.any(np.abs(soln) < 1e-10):
-        print("THIS IS BAD. FIX ME NOW.")
+        logger.log("THIS IS BAD. FIX ME NOW.", level=Logger.ERROR)
         exit(1)
-    
-    rescale = np.median(soln/known_A[:,row])
-    soln[np.abs(soln) < 1e-10] = known_A[:,row][np.abs(soln) < 1e-10] * rescale
+
+    rescale = np.median(soln / known_A[:, row])
+    soln[np.abs(soln) < 1e-10] = known_A[:, row][np.abs(soln) < 1e-10] * rescale
 
     if CHEATING:
-        other = A[LAYER][:,which_neuron]
-        print("real / mine / diff")
-        print(other/other[0])
-        print(soln/soln[0])
-        print(known_A[:,row]/known_A[:,row][0])
-        print(other/other[0] - soln/soln[0])
+        other = A[LAYER][:, which_neuron]
+        logger.log("real / mine / diff", level=Logger.INFO)
+        logger.log(other / other[0], level=Logger.INFO)
+        logger.log(soln / soln[0], level=Logger.INFO)
+        logger.log(known_A[:, row] / known_A[:, row][0], level=Logger.INFO)
+        logger.log(other / other[0] - soln / soln[0], level=Logger.INFO)
 
-    
     if best[1] < np.mean(np.abs(crit_val_1)) or True:
         return soln, -1
     else:
-        print("FAILED TO IMPROVE ACCURACY OF ROW", row)
-        print(np.mean(np.abs(crit_val_2)), 'vs', np.mean(np.abs(crit_val_1)))
-        return known_A[:,row], known_B[row]
+        logger.log("FAILED TO IMPROVE ACCURACY OF ROW", row, level=Logger.INFO)
+        logger.log(np.mean(np.abs(crit_val_2)), 'vs', np.mean(np.abs(crit_val_1)), level=Logger.INFO)
+        return known_A[:, row], known_B[row]
 
 
 def improve_layer_precision(LAYER, known_T, known_A, known_B):
     new_A = []
-    new_B = []    
+    new_B = []
 
     out = map(improve_row_precision,
-              [(LAYER, known_T, known_A, known_B, row, False) for row in range(neuron_count[LAYER+1])])
+              [(LAYER, known_T, known_A, known_B, row, False) for row in range(neuron_count[LAYER + 1])])
     new_A, new_B = zip(*out)
 
     new_A = np.array(new_A).T
     new_B = np.array(new_B)
 
-    print("HAVE", new_A, new_B)
+    logger.log("HAVE", new_A, new_B, level=Logger.INFO)
 
     return new_A, new_B

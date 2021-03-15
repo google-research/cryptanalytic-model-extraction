@@ -15,7 +15,11 @@
 import numpy as np
 
 from src.global_vars import *
+from src.tracker import Logger
 from src.utils import run, basis, AcceptableFailure, cheat_get_inner_layers, which_is_zero
+
+logger = Logger()
+
 
 def get_grad(x, direction, eps=1e-6):
     """
@@ -29,21 +33,25 @@ def get_grad(x, direction, eps=1e-6):
     -X--/
 
     """
-    x = x[np.newaxis,:]
-    a = run(x-eps*direction)
+    x = x[np.newaxis, :]
+    a = run(x - eps * direction)
     b = run(x)
-    g1 = (b-a)/eps
+    g1 = (b - a) / eps
     return g1
+
 
 def get_second_grad_unsigned(x, direction, eps, eps2):
     """
     Compute the second derivitive by computing the first derivitive twice.
     """
-    grad_value = get_grad(x + direction*eps, direction, eps2)+get_grad(x - direction*eps, -direction, eps2)
+    grad_value = get_grad(x + direction * eps, direction, eps2) + get_grad(x - direction * eps, -direction, eps2)
 
     return grad_value[0]
 
-MASK = np.array([1,-1,1,-1])
+
+MASK = np.array([1, -1, 1, -1])
+
+
 def get_second_grad_unsigned(x, direction, eps, eps2):
     """
     Same as the above but batched so it's more efficient.
@@ -54,10 +62,9 @@ def get_second_grad_unsigned(x, direction, eps, eps2):
                   x - direction * (eps)])
 
     out = run(x)
-    
-    return np.dot(out.flatten(), MASK)/eps
 
-    
+    return np.dot(out.flatten(), MASK) / eps
+
 
 def get_ratios(critical_points, N, with_sign=True, eps=1e-5):
     """
@@ -84,15 +91,15 @@ def get_ratios(critical_points, N, with_sign=True, eps=1e-5):
     And check to see if we get the correct solution.
     """
     ratios = []
-    for j,point in enumerate(critical_points):
+    for j, point in enumerate(critical_points):
         ratio = []
         for i in N[j]:
-            ratio.append(get_second_grad_unsigned(point, basis(i), eps, eps/3))
-            
+            ratio.append(get_second_grad_unsigned(point, basis(i), eps, eps / 3))
+
         if with_sign:
             both_ratio = []
             for i in N[j]:
-                both_ratio.append(get_second_grad_unsigned(point, (basis(i) + basis(N[j][0]))/2, eps, eps/3))
+                both_ratio.append(get_second_grad_unsigned(point, (basis(i) + basis(N[j][0])) / 2, eps, eps / 3))
 
             signed_ratio = []
             for i in range(len(ratio)):
@@ -106,13 +113,14 @@ def get_ratios(critical_points, N, with_sign=True, eps=1e-5):
                 # |f(x+d1+d2)| = |f(x+d1)| - |f(x+d2)|
                 # or 
                 # |f(x+d1+d2)| = |f(x+d2)| - |f(x+d1)|
-                positive_error = abs(abs(ratio[0]+ratio[i])/2 - abs(both_ratio[i]))
-                negative_error = abs(abs(ratio[0]-ratio[i])/2 - abs(both_ratio[i]))
+                positive_error = abs(abs(ratio[0] + ratio[i]) / 2 - abs(both_ratio[i]))
+                negative_error = abs(abs(ratio[0] - ratio[i]) / 2 - abs(both_ratio[i]))
 
                 if positive_error > 1e-4 and negative_error > 1e-4:
-                    print("Probably something is borked")
-                    print("d^2(e(i))+d^2(e(j)) != d^2(e(i)+e(j))", positive_error, negative_error)
-                    raise
+                    logger.log("Probably something is borked", level=Logger.ERROR)
+                    logger.log("d^2(e(i))+d^2(e(j)) != d^2(e(i)+e(j))", positive_error, negative_error,
+                               level=Logger.ERROR)
+                    raise AcceptableFailure()
 
                 if positive_error < negative_error:
                     signed_ratio.append(ratio[i])
@@ -120,13 +128,14 @@ def get_ratios(critical_points, N, with_sign=True, eps=1e-5):
                     signed_ratio.append(-ratio[i])
         else:
             signed_ratio = ratio
-        
+
         ratio = np.array(signed_ratio)
 
-        #print(ratio)
+        # print(ratio)
         ratios.append(ratio)
-        
+
     return ratios
+
 
 def get_ratios_lstsq(LAYER, critical_points, N, known_T, debug=False, eps=1e-5):
     """
@@ -135,20 +144,20 @@ def get_ratios_lstsq(LAYER, critical_points, N, known_T, debug=False, eps=1e-5):
     This means we can't directly choose orthogonal directions, and so we're going
     to just pick random ones and then use least-squares to do it
     """
-    #pickle.dump((LAYER, critical_points, N, known_T, debug, eps),
+    # pickle.dump((LAYER, critical_points, N, known_T, debug, eps),
     #            open("/tmp/save.p","wb"))
     ratios = []
-    for i,point in enumerate(critical_points):
+    for i, point in enumerate(critical_points):
         if CHEATING:
             layers = cheat_get_inner_layers(point)
             layer_vals = [np.min(np.abs(x)) for x in layers]
             which_layer = np.argmin(layer_vals)
-            #print("real zero", np.argmin(np.abs(layers[0])))
+            # print("real zero", np.argmin(np.abs(layers[0])))
             which_neuron = which_is_zero(which_layer, layers)
-            #print("Which neuron?", which_neuron)
+            # print("Which neuron?", which_neuron)
 
-            real = A[which_layer][:,which_neuron]/A[which_layer][0,which_neuron]
-        
+            real = A[which_layer][:, which_neuron] / A[which_layer][0, which_neuron]
+
         # We're going to create a system of linear equations
         # d_matrix is going to hold the inputs,
         # and ys is going to hold the resulting learned outputs
@@ -157,13 +166,13 @@ def get_ratios_lstsq(LAYER, critical_points, N, known_T, debug=False, eps=1e-5):
 
         # Query on N+2 random points, so that we have redundency
         # for the least squares solution.
-        for i in range(np.sum(known_T.forward(point) != 0)+2):
+        for i in range(np.sum(known_T.forward(point) != 0) + 2):
             # 1. Choose a random direction
-            d = np.sign(np.random.normal(0,1,point.shape))
+            d = np.sign(np.random.normal(0, 1, point.shape))
             d_matrix.append(d)
 
             # 2. See what the second partial derivitive at this value is
-            ratio_val = get_second_grad_unsigned(point, d, eps, eps/3)
+            ratio_val = get_second_grad_unsigned(point, d, eps, eps / 3)
 
             # 3. Get the sign correct
             if len(ys) > 0:
@@ -177,20 +186,20 @@ def get_ratios_lstsq(LAYER, critical_points, N, known_T, debug=False, eps=1e-5):
                 # |f(x+d1+d2)| = |f(x+d1)| - |f(x+d2)|
                 # or 
                 # |f(x+d1+d2)| = |f(x+d2)| - |f(x+d1)|
-                both_ratio_val = get_second_grad_unsigned(point, (d+d_matrix[0])/2, eps, eps/3)
+                both_ratio_val = get_second_grad_unsigned(point, (d + d_matrix[0]) / 2, eps, eps / 3)
 
-                positive_error = abs(abs(ys[0]+ratio_val)/2 - abs(both_ratio_val))
-                negative_error = abs(abs(ys[0]-ratio_val)/2 - abs(both_ratio_val))
+                positive_error = abs(abs(ys[0] + ratio_val) / 2 - abs(both_ratio_val))
+                negative_error = abs(abs(ys[0] - ratio_val) / 2 - abs(both_ratio_val))
 
                 if positive_error > 1e-4 and negative_error > 1e-4:
-                    print("Probably something is borked")
-                    print("d^2(e(i))+d^2(e(j)) != d^2(e(i)+e(j))", positive_error, negative_error)
+                    logger.log("Probably something is borked", level=Logger.ERROR)
+                    logger.log("d^2(e(i))+d^2(e(j)) != d^2(e(i)+e(j))", positive_error, negative_error,
+                               level=Logger.ERROR)
                     raise AcceptableFailure()
 
-                
                 if negative_error < positive_error:
                     ratio_val *= -1
-            
+
             ys.append(ratio_val)
 
         d_matrix = np.array(d_matrix)
@@ -199,23 +208,22 @@ def get_ratios_lstsq(LAYER, critical_points, N, known_T, debug=False, eps=1e-5):
         # so compute that precisely
         h_matrix = np.array(known_T.forward_at(point, d_matrix))
 
-            
         # Which dimensions do we lose?
-        column_is_zero = np.mean(np.abs(h_matrix)<1e-8,axis=0) > .5
+        column_is_zero = np.mean(np.abs(h_matrix) < 1e-8, axis=0) > .5
         assert np.all((known_T.forward(point, with_relu=True) == 0) == column_is_zero)
 
-        #print(h_matrix.shape)
+        # print(h_matrix.shape)
 
         # Solve the least squares problem and get the solution
         # This is equal to solving for the ratios of the weight vector
         soln, *rest = np.linalg.lstsq(np.array(h_matrix, dtype=np.float32),
                                       np.array(ys, dtype=np.float32), 1e-5)
-    
+
         # Set the columns we know to be wrong to NaN so that it's obvious
         # this isn't important but it helps us distinguish from genuine errors
         # and the kind that we can't avoic because of zero gradients
         soln[column_is_zero] = np.nan
 
         ratios.append(soln)
-        
+
     return ratios
