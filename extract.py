@@ -41,8 +41,6 @@ logger = Logger()
 
 
 def run_full_attack():
-    global query_count
-
     extracted_normals = []
     extracted_biases = []
 
@@ -66,7 +64,7 @@ def run_full_attack():
         extracted_normal, extracted_bias = refine_precision.improve_layer_precision(layer_num,
                                                                                     known_T, extracted_normal,
                                                                                     extracted_bias)
-        logger.log("Query count", query_count, level=Logger.INFO)
+        logger.log("Query count", Tracker().query_count, level=Logger.INFO)
 
         # And print how well we're doing
         check_quality(layer_num, extracted_normal, extracted_bias)
@@ -106,7 +104,7 @@ def run_full_attack():
         logger.log("Extracted", extracted_sign, level=Logger.INFO)
         logger.log('real sign', np.int32(np.sign(mask)), level=Logger.INFO)
 
-        logger.log("Total query count", query_count, level=Logger.INFO)
+        logger.log("Total query count", Tracker().query_count, level=Logger.INFO)
 
         # Correct signs
         extracted_normal *= extracted_sign
@@ -121,7 +119,7 @@ def run_full_attack():
 
     known_T = KnownT(extracted_normals, extracted_biases)
 
-    for a, b in sorted(query_count_at.items(), key=lambda x: -x[1]):
+    for a, b in sorted(Tracker().query_count_at.items(), key=lambda x: -x[1]):
         logger.log('count', b, '\t', 'line:', a, ':', self_lines[a - 1].strip(), level=Logger.INFO)
 
     # And then finish up

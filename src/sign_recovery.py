@@ -20,7 +20,7 @@ import scipy.signal
 import time
 
 from src.global_vars import *
-from src.tracker import Logger
+from src.tracker import Logger, Tracker
 from src.utils import run, get_polytope_at, get_hidden_at, AcceptableFailure, KnownT, matmul, cheat_get_inner_layers, \
     which_is_zero
 from src.hyperplane_normal import get_ratios_lstsq, get_ratios
@@ -600,7 +600,7 @@ def follow_hyperplane(LAYER, start_point, known_T, known_A, known_B,
         if (np.all(neuron_positive_count > 0) and np.all(neuron_negative_count > 0)) or \
                 (only_need_positive and np.all(neuron_positive_count > 0)):
             logger.log("Have all the points we need (1)", level=Logger.INFO)
-            logger.log(query_count, level=Logger.INFO)
+            logger.log(Tracker().query_count, level=Logger.INFO)
             logger.log(neuron_positive_count, level=Logger.INFO)
             logger.log(neuron_negative_count, level=Logger.INFO)
 
@@ -1001,7 +1001,7 @@ def solve_layer_sign(known_T, known_A0, known_B0, critical_points, LAYER,
 
         which_is_zero = which_is_zero[0]
 
-    logger.log("Query count", query_count, level=Logger.INFO)
+    logger.log("Query count", Tracker().query_count, level=Logger.INFO)
 
     K = neuron_count[LAYER + 1]
     MAX = (1 << K)

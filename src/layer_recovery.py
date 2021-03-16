@@ -22,7 +22,7 @@ import networkx as nx
 import src.sign_recovery as sign_recovery
 from src.global_vars import *
 from src.hyperplane_normal import get_ratios_lstsq
-from src.tracker import Logger
+from src.tracker import Logger, Tracker
 from src.utils import AcceptableFailure, GatherMoreData, matmul, KnownT, cheat_get_inner_layers, which_is_zero
 
 logger = Logger()
@@ -403,7 +403,7 @@ def gather_ratios(critical_points, known_T, check_fn, LAYER, COUNT):
                        [(np.min(np.abs(x)), np.argmin(np.abs(x))) for x in cheat_get_inner_layers(point)],
                        level=Logger.INFO)
 
-        tmp = query_count
+        tmp = Tracker().query_count
         for EPS in [GRAD_EPS, GRAD_EPS / 10, GRAD_EPS / 100]:
             try:
                 normal = get_ratios_lstsq(LAYER, [point], [range(DIM)], known_T, eps=EPS)[0].flatten()
@@ -457,7 +457,7 @@ def compute_layer_values(critical_points, known_T, LAYER):
         this_layer_critical_points.extend(gather_ratios(reuse_critical_points(), known_T, check_fn,
                                                         LAYER, COUNT))
 
-        logger.log("Query count after that search:", query_count, level=Logger.INFO)
+        logger.log("Query count after that search:", Tracker().query_count, level=Logger.INFO)
         logger.log("And now up to ", len(this_layer_critical_points), "critical points", level=Logger.INFO)
 
         ## filter out duplicates

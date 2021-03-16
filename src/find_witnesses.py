@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from src.global_vars import *
-from src.tracker import Logger
+from src.tracker import Logger, Tracker
 from src.utils import run, cheat_num_relu_crosses, cheat_get_inner_layers
 
 logger = Logger()
@@ -256,12 +256,12 @@ def do_better_sweep(offset=None, direction=None, low=-1e3, high=1e3, return_upto
 def sweep_for_critical_points(std=1, known_T=None):
     while True:
         logger.log("Start another sweep", level=Logger.INFO)
-        qs = query_count
+        qs = Tracker().query_count
         sweep = do_better_sweep(
             offset=np.random.normal(0, np.random.uniform(std / 10, std), size=DIM),
             known_T=known_T,
             low=-std * 1e3, high=std * 1e3, debug=False)
         logger.log("Total intersections found", len(sweep), level=Logger.INFO)
-        logger.log("delta queries", query_count - qs, level=Logger.INFO)
+        logger.log("delta queries", Tracker().query_count - qs, level=Logger.INFO)
         for point in sweep:
             yield point

@@ -18,7 +18,7 @@ import jax.numpy as jnp
 
 from src.find_witnesses import do_better_sweep
 from src.global_vars import *
-from src.tracker import Logger
+from src.tracker import Logger, Tracker
 from src.utils import matmul, which_is_zero
 
 logger = Logger()
@@ -149,7 +149,7 @@ def improve_row_precision(args):
                         continue
 
                 # print("Stepsize", stepsize)
-                tmp = query_count
+                tmp = Tracker().query_count
                 solution = do_better_sweep(offset=point,
                                            low=-stepsize,
                                            high=stepsize,

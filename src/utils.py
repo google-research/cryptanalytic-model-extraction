@@ -17,6 +17,8 @@ import numpy as np
 import jax.numpy as jnp
 import sys
 
+import torch
+
 from src.global_vars import *
 from src.global_vars import __cheat_A, __cheat_B
 from src.tracker import Tracker, Logger
@@ -49,30 +51,22 @@ def run(x, inner_A=__cheat_A, inner_B=__cheat_B):
     Log the result as having happened so that we can debug errors and
     improve query efficiency.
     """
-    global query_count
-    query_count += x.shape[0]
+    Tracker().query_count += x.shape[0]
     assert len(x.shape) == 2
 
     orig_x = x
 
-    for i, (a, b) in enumerate(zip(inner_A, inner_B)):
-        # Compute the matrix product.
-        # This is a right-matrix product which means that rows/columns are flipped
-        # from the definitions in the paper.
-        # This was the first method I wrote and it doesn't make sense.
-        # Please forgive me.
-        x = matmul(x, a, b)
-        if i < len(sizes) - 2:
-            x = x * (x > 0)
+    x = model(torch.tensor(orig_x)).detach().numpy()
+
     Tracker().save_queries(zip(orig_x, x))
 
     if TRACK_LINES:
         for line in traceback.format_stack():
             if 'repeated' in line: continue
             line_no = int(line.split("line ")[1].split()[0][:-1])
-            if line_no not in query_count_at:
-                query_count_at[line_no] = 0
-            query_count_at[line_no] += x.shape[0]
+            if line_no not in Tracker().query_count_at:
+                Tracker().query_count_at[line_no] = 0
+            Tracker().query_count_at[line_no] += x.shape[0]
 
     return x
 

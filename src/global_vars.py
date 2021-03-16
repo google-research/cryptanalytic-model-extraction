@@ -22,6 +22,9 @@ import random
 #####################################################################
 
 from jax.config import config
+
+from src.to_pytorch import to_pytorch
+
 config.update("jax_enable_x64", True)
 
 # To ensure reproducible results to help debugging, set seeds for randomness.
@@ -37,11 +40,9 @@ neuron_count = sizes
 DIM = sizes[0]
 
 __cheat_A, __cheat_B = np.load("models/" + str(seed) + "_" + "-".join(map(str,sizes))+".npy", allow_pickle=True)
-
+model = to_pytorch(__cheat_A, __cheat_B, sizes)
 # In order to help debugging, we're going to log what lines of code
 # cause lots of queries to be generated. Use this to improve things.
-query_count = 0
-query_count_at = {}
 
 # HYPERPARAMETERS. Change these at your own risk. It may all die.
 
